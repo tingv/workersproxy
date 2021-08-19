@@ -1,29 +1,27 @@
-// Website you intended to retrieve for users.
-const upstream = 'www.google.com'
+// 上游网站的域名
+const upstream = 'tv.emby.media'
 
-// Custom pathname for the upstream website.
+// 上游网站的路径
 const upstream_path = '/'
 
-// Website you intended to retrieve for users using mobile devices.
-const upstream_mobile = 'www.google.com'
+// 上游网站的移动端域名
+const upstream_mobile = 'tv.emby.media'
 
-// Countries and regions where you wish to suspend your service.
-const blocked_region = ['CN', 'KP', 'SY', 'PK', 'CU']
+// 禁止访问的国家地区
+const blocked_region = ['US']
 
-// IP addresses which you wish to block from using your service.
+// 禁止使用服务的IP地址
 const blocked_ip_address = ['0.0.0.0', '127.0.0.1']
 
-// Whether to use HTTPS protocol for upstream address.
+// 是否开启上游网站的https
 const https = true
 
-// Whether to disable cache.
+// 是否关闭缓存
 const disable_cache = false
 
-// Replace texts.
-const replace_dict = {
-    '$upstream': '$custom_domain',
-    '//google.com': ''
-}
+// 替换验证代码
+const find = 'var status=(response||{}).status;return console.log("getRegistrationInfo response: "+status),403===status?Promise.reject("overlimit"):status&&status<500?Promise.reject():function(err){if(console.log("getRegistrationInfo failed: "+err),regCacheValid)return console.log("getRegistrationInfo returning cached info"),Promise.resolve();throw err}(response)'
+const replace = 'return appStorage.setItem(cacheKey,JSON.stringify({lastValidDate:Date.now(),deviceId:params.deviceId,cacheExpirationDays:999})),Promise.resolve()'
 
 addEventListener('fetch', event => {
     event.respondWith(fetchAndApply(event.request));
@@ -58,11 +56,11 @@ async function fetchAndApply(request) {
     }
 
     if (blocked_region.includes(region)) {
-        response = new Response('Access denied: WorkersProxy is not available in your region yet.', {
+        response = new Response('拒绝访问: 你所在的地区尚不可用', {
             status: 403
         });
     } else if (blocked_ip_address.includes(ip_address)) {
-        response = new Response('Access denied: Your IP address is blocked by WorkersProxy.', {
+        response = new Response('拒绝访问: 你的 IP 被禁止访问', {
             status: 403
         });
     } else {
@@ -104,8 +102,8 @@ async function fetchAndApply(request) {
         }
 		
         const content_type = new_response_headers.get('content-type');
-        if (content_type != null && content_type.includes('text/html') && content_type.includes('UTF-8')) {
-            original_text = await replace_response_text(original_response_clone, upstream_domain, url_hostname);
+        if (url.href.indexOf("/modules/emby-apiclient/connectionmanager.js") != -1 && content_type != null && content_type.includes('application/javascript')) {
+            original_text = await replace_response_text(original_response_clone);
         } else {
             original_text = original_response_clone.body
         }
@@ -118,30 +116,11 @@ async function fetchAndApply(request) {
     return response;
 }
 
-async function replace_response_text(response, upstream_domain, host_name) {
+async function replace_response_text(response) {
     let text = await response.text()
-
-    var i, j;
-    for (i in replace_dict) {
-        j = replace_dict[i]
-        if (i == '$upstream') {
-            i = upstream_domain
-        } else if (i == '$custom_domain') {
-            i = host_name
-        }
-
-        if (j == '$upstream') {
-            j = upstream_domain
-        } else if (j == '$custom_domain') {
-            j = host_name
-        }
-
-        let re = new RegExp(i, 'g')
-        text = text.replace(re, j);
-    }
+    text = text.replace(find, replace)
     return text;
 }
-
 
 async function device_status(user_agent_info) {
     var agents = ["Android", "iPhone", "SymbianOS", "Windows Phone", "iPad", "iPod"];
